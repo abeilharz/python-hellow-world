@@ -1,0 +1,69 @@
+Lab: Lab04-codepipeline-python-webapp
+=============================
+
+Setup:
+====================================================================================================
+  - Cretae a new public Github repo (or use same as yesterday) but there are new files in 
+  https://drive.google.com/drive/folders/11LKT8cHQd9CFX4cER3SEkFelt-lWJO7V?usp=drive_link
+  that you have to upload to your repo.
+
+ - You will need to create an Amazon Linux 2023 EC2 instance with public access and IP and tag it with  
+    Key: deployment-group
+	Value: ec2
+	- now ssh into it and install codedeploy agent!
+	- Use the scripts in infra/02-codedeploy folder ...
+	  - 00-open-port-5000-linux-fw.sh
+	  - 01-verify-codedeploy-agent-running  $YOUR_REGION
+	    - if you do not specify $YOUR_REGION, then default to eu-west-2
+		
+		
+  
+  Although this step deals with automating the codebuild project creation. There are some things that have not been automated
+  and must be created first.
+  
+  - Create an S3 bucket that contains the name "codebuild" and create 2 folders in it
+     - name first folder "output-artifact"
+     - name second folder "build-cache"
+  - Create an IAM Service Role for ...
+     a) Codebuild 
+	 b) CodeDeploy
+	 c) CloudFormation
+	 d) Pipleine
+	 
+	 There are "!!!TODO ...!!!" in the scripts and cloudformation templates where you will have to amongst
+	 other things, substitute the above IAM Service Role arn's. For now, keep it "simple" and assign administrative
+	 permissions or else you may waster all the lab time on time (but as you know, not in real life!)
+ 
+====================================================================================================
+
+   
+CodePipeline
+============
+
+You will re-create all the infra from scratch therefore if you have already an existing codebuild
+and codedeploy project setup from last week then, ensure their names will not collide (not same name)
+as the ones that willm be created here.
+
+You must find all text with "!!!TODO-..." has been substituted with your values
+
+look in directories ...
+  - infra/01-codebuild
+  - infra/02-codedeploy
+  - infra/03-codepipeline
+
+Once done then ...
+ - $ cd into infra/03-codepipeline 
+ - execute command ...
+   - $ ./01-create-pipeline-stack
+
+- Goto CloudFormation page and ensure all is going well
+
+- Goto CodePipleline page and see the progress of your CI/CD pipline 
+  - You must manually approve your deployment by ...
+     - Entering a message and press Approve button
+
+	 
+Verify App on Browser
+============================	
+- once done goto ec2 public ip on browser and append :5000
+ex: http://4.10.28.111:5000

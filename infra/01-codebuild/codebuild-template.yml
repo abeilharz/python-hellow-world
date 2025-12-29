@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create a CodeBuild project
+
+Resources:
+  PythonHelloWorldCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: python-hello-world-demo
+      ServiceRole: !!!TODO-ENTER-CODEBUILD-IAM-SERVICE-ROLE-ARN!!!
+      Source:
+        Type: GITHUB
+        Location: !!!TODO-ENTER-HTTPS-GITHUB-REPO-.GIT-LINK!!!
+        GitCloneDepth: 1
+        InsecureSsl: false
+        ReportBuildStatus: false
+      Triggers:
+        Webhook: true
+      Artifacts:
+        Type: S3
+        Location: aws-cicd-python-helloworld
+        Path: codebuild-artifacts
+        Name: python-hello-world.zip
+        Packaging: ZIP
+        OverrideArtifactName: false
+        EncryptionDisabled: true
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux-x86_64-standard:5.0
+        PrivilegedMode: false
+        ImagePullCredentialsType: CODEBUILD
+      Cache:
+        Type: S3
+        Location: aws-cicd-python-helloworld/codebuild-cache
+      TimeoutInMinutes: 45
+      QueuedTimeoutInMinutes: 480
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: codebuild/python-hello-world
+          StreamName: python-hello-world
+        S3Logs:
+          Status: DISABLED
+          EncryptionDisabled: false
+
+Outputs:
+  CodeBuildProjectName:
+    Description: "CodeBuild project name"
+    Value: !Ref PythonHelloWorldCodeBuildProject
+
+  CodeBuildProjectLink:
+    Description: "CodeBuild project"
+    Value: !Sub >
+      https://${AWS::Region}.console.aws.amazon.com/codesuite/codebuild/projects/${PythonHelloWorldCodeBuildProject}/build?region=${AWS::Region}

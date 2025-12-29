@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CodeDeploy Application + Deployment Group"
+
+Parameters:
+  ApplicationName:
+    Type: String
+    Default: "aws-cicd-python-helloworld"
+
+  DeploymentGroupName:
+    Type: String
+    Default: "ec2-deployment"
+
+Resources:
+
+  CodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: !Ref ApplicationName
+      ComputePlatform: Server
+
+  CodeDeployDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    DependsOn: CodeDeployApplication
+    Properties:
+      ApplicationName: !Ref ApplicationName
+      DeploymentGroupName: !Ref DeploymentGroupName
+      ServiceRoleArn: "!!!TODO-ENTER-CODEDEPLOY-IAM-SERVICE-ROLE-ARN!!!"
+
+      DeploymentConfigName: "CodeDeployDefault.AllAtOnce"
+
+      DeploymentStyle:
+        DeploymentType: "IN_PLACE"
+        DeploymentOption: "WITHOUT_TRAFFIC_CONTROL"
+
+      Ec2TagFilters:
+        - Key: "deployment-group"
+          Value: "ec2"
+          Type: "KEY_AND_VALUE"
+
+      AlarmConfiguration:
+        Enabled: false
+        IgnorePollAlarmFailure: false
+        Alarms: []
+
+      AutoScalingGroups: []
+      TriggerConfigurations: []
+      OutdatedInstancesStrategy: UPDATE
+
+Outputs:
+  ApplicationName:
+    Value: !Ref ApplicationName
+
+  DeploymentGroupName:
+    Value: !Ref DeploymentGroupName

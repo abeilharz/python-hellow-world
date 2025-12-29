@@ -1,0 +1,28 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+    commands:
+      - echo Installing dependencies...
+      - pip install -r requirements.txt
+  build:
+    commands:
+      - echo Running unit tests...
+      - python3 -m unittest test_app.py
+artifacts:
+  files:
+    - app.py
+    - requirements.txt
+    - create-codedeploy-env-vars.sh
+    - run.sh
+    - stop.sh
+    - pre-install-checks.sh
+    - validate.sh
+    - appspec.yml
+  name: output-artifact
+
+cache:
+  paths:
+    - "/root/.cache/pip/**/*"

@@ -1,0 +1,175 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Master stack that creates CodePipeline and deploys CodeBuild + CodeDeploy stacks from GitHub using TemplatePath."
+
+Parameters:
+
+  CodePipelineRoleArn:
+    Type: String
+    Description: ARN of the IAM role assumed by CodePipeline.
+
+  PipelineBucket:
+    Type: String
+    Description: S3 bucket used by CodePipeline as artifact store.
+
+  GitConnectionArn:
+    Type: String
+    Description: ARN of the CodeStar Connection used for GitHub access.
+
+  GitFullRepoId:
+    Type: String
+    Description: GitHub repository in the form owner/repo.
+
+  GitBranch:
+    Type: String
+    Default: "main"
+    Description: GitHub branch to use as the source.
+
+  CloudFormationExecutionRoleArn:
+    Type: String
+    Description: IAM role ARN used by CloudFormation deploy actions.
+
+  # Optional defaults for CodeDeploy parameters (you requested defaults exposed)
+  DefaultApplicationName:
+    Type: String
+    Default: "aws-cicd-python-helloworld"
+    Description: Default ApplicationName to pass to codedeploy template.
+
+  DefaultDeploymentGroupName:
+    Type: String
+    Default: "ec2-deployment"
+    Description: Default DeploymentGroupName to pass to codedeploy template.
+Resources:
+
+  PythonPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: python-hello-world-pipeline
+      RoleArn: !Ref CodePipelineRoleArn
+      PipelineType: V2
+      ExecutionMode: QUEUED
+      ArtifactStore:
+        Type: S3
+        Location: !Ref PipelineBucket
+
+      Stages:
+
+        # 1. SOURCE
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: 1
+              Configuration:
+                BranchName: !Ref GitBranch
+                ConnectionArn: !Ref GitConnectionArn
+                FullRepositoryId: !Ref GitFullRepoId
+                DetectChanges: "true"
+                OutputArtifactFormat: CODE_ZIP
+              OutputArtifacts:
+                - Name: SourceArtifact
+              RunOrder: 1
+
+        # 2. Deploy CodeBuild Stack 
+        - Name: DeployCodeBuild
+          Actions:
+            - Name: DeployBuildStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                StackName: python-hello-world-codebuild-stack
+                TemplatePath: SourceArtifact::infra/01-codebuild/codebuild-template.yml
+                Capabilities: CAPABILITY_NAMED_IAM
+                RoleArn: !Ref CloudFormationExecutionRoleArn
+              InputArtifacts:
+                - Name: SourceArtifact
+              RunOrder: 1
+
+        # 3. Deploy CodeDeploy Stack
+        - Name: DeployCodeDeploy
+          Actions:
+            - Name: DeployDeployStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                StackName: python-hello-world-codedeploy-stack
+                TemplatePath: SourceArtifact::infra/02-codedeploy/codedeploy-template.yml
+                Capabilities: CAPABILITY_NAMED_IAM
+                RoleArn: !Ref CloudFormationExecutionRoleArn
+                ParameterOverrides: !Sub |
+                  {
+                   "ApplicationName": "${DefaultApplicationName}",
+                   "DeploymentGroupName": "${DefaultDeploymentGroupName}"
+                  }
+              InputArtifacts:
+                - Name: SourceArtifact
+              RunOrder: 1
+
+        # 4. Build Stage (assumes the codebuild-template creates a project named "codebuild-project")
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: python-hello-world-demo
+                EnvironmentVariables: >-
+                  [{"name":"GIT_COMMIT_ID","value":"CODEBUILD_RESOLVED_SOURCE_VERSION","type":"PLAINTEXT"}]
+              InputArtifacts:
+                - Name: SourceArtifact
+              OutputArtifacts:
+                - Name: BuildArtifact
+              RunOrder: 1
+
+        # 5. Manual Approval
+        - Name: Approval
+          Actions:
+            - Name: Manual_Approval
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: 1
+              Configuration:
+                CustomData: "Manual Approval required. Enter a comment to proceed."
+                IsSummaryRequired: "True"
+              RunOrder: 1
+
+        # 6. Deploy App (CodeDeploy)
+        - Name: DeployApp
+          Actions:
+            - Name: CodeDeploy
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CodeDeploy
+                Version: 1
+              Configuration:
+                ApplicationName: !Ref DefaultApplicationName
+                DeploymentGroupName: !Ref DefaultDeploymentGroupName
+              InputArtifacts:
+                - Name: BuildArtifact
+              RunOrder: 1
+
+Outputs:
+
+  PipelineName:
+    Description: "CodePipeline name"
+    Value: !Ref PythonPipeline
+
+  PipelineConsoleUrl:
+    Description: "Link to pipeline in console"
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${PythonPipeline}/view?region=${AWS::Region}"
